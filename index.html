@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Reserva de Salas</title>
+<style>
+  :root { --texto:#000; --fundo:#fff; --borda:#555; --erro:#a00000; --ok:#005a00; --foco:#0047ab; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--fundo); color:var(--texto);
+         font: 18px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 1.8rem; margin: 0 0 4px; }
+  h2 { font-size: 1.35rem; margin: 0 0 8px; }
+  p.sub { margin: 0 0 24px; }
+  fieldset { border: 1px solid var(--borda); border-radius: 8px; padding: 16px; margin: 0 0 20px; }
+  legend { font-weight: 700; padding: 0 6px; }
+  .grade { display: grid; gap: 14px; grid-template-columns: 1fr 1fr; }
+  .grade .inteira { grid-column: 1 / -1; }
+  @media (max-width: 560px) { .grade { grid-template-columns: 1fr; } }
+  label { display:block; font-weight:600; margin-bottom:4px; }
+  input, select, textarea, button { font: inherit; width: 100%; padding: 10px 12px;
+         border: 2px solid var(--borda); border-radius: 6px; background:#fff; color:#000; }
+  textarea { min-height: 80px; resize: vertical; }
+  :focus-visible { outline: 3px solid var(--foco); outline-offset: 2px; }
+  button { background:#000; color:#fff; border-color:#000; font-weight:700; cursor:pointer; margin-top: 4px; }
+  button.secundario { background:#fff; color:#000; }
+  button:disabled { opacity: .55; cursor: wait; }
+  .agenda { border:1px dashed var(--borda); border-radius:6px; padding:10px 12px; }
+  .agenda p { margin: 0 0 6px; }
+  .agenda ul { margin: 0 0 6px; padding-left: 20px; }
+  .msg { margin-top: 16px; padding: 12px; border-radius: 6px; border: 2px solid; }
+  .msg.erro { color: var(--erro); border-color: var(--erro); }
+  .msg.ok { color: var(--ok); border-color: var(--ok); }
+  .msg:empty { display:none; }
+  .painel { border: 2px solid #000; border-radius: 8px; padding: 16px; margin: 0 0 24px; }
+  .painel dl { display:grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 8px 0 12px; }
+  .painel dt { font-weight: 700; }
+  .painel dd { margin: 0; }
+  .armadilha { position:absolute; left:-9999px; width:1px; height:1px; overflow:hidden; }
+  .aviso { font-size: .9rem; margin-top: 12px; }
+  details { margin-top: 24px; border-top: 1px solid var(--borda); padding-top: 12px; }
+  summary { font-weight:700; cursor:pointer; font-size:1.15rem; }
+  .obrig { color: var(--erro); }
+  table { width:100%; border-collapse: collapse; margin-top: 12px; font-size: .95rem; }
+  caption { text-align:left; font-weight:600; margin-bottom: 6px; }
+  th, td { border:1px solid var(--borda); padding:6px 8px; text-align:left; vertical-align: top; }
+  th { background:#eee; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Reserva de Salas</h1>
+
+  <!-- Painel aberto pelos links do e-mail (#confirmar=... ou #cancelar=...) -->
+  <section id="painelLink" class="painel" hidden aria-labelledby="tituloLink" tabindex="-1">
+    <h2 id="tituloLink">Reserva</h2>
+    <div id="detalheLink">Carregando…</div>
+    <button type="button" id="btnLink" hidden></button>
+    <div id="msgLink" class="msg" role="status" aria-live="polite"></div>
+    <p><a href="./" id="voltar">Fazer outra reserva</a></p>
+  </section>
+
+  <div id="areaReserva">
+    <p class="sub">Escolha a sala, a data e o horário, e preencha seus dados. Você receberá um link no e-mail para <strong>confirmar</strong> a reserva. Campos com <span class="obrig" aria-hidden="true">*</span> são obrigatórios.</p>
+
+    <form id="formReserva" novalidate>
+      <fieldset>
+        <legend>Sala e período</legend>
+        <div class="grade">
+          <div class="inteira">
+            <label for="sala">Sala <span class="obrig" aria-hidden="true">*</span></label>
+            <select id="sala" name="sala" required><option value="">Carregando…</option></select>
+          </div>
+          <div class="inteira">
+            <label for="data">Data <span class="obrig" aria-hidden="true">*</span></label>
+            <input id="data" name="data" type="date" required>
+          </div>
+          <div class="inteira agenda" id="agenda" aria-live="polite">Selecione sala e data para ver os horários livres.</div>
+          <div>
+            <label for="inicio">Início <span class="obrig" aria-hidden="true">*</span></label>
+            <input id="inicio" name="inicio" type="time" step="300" required>
+          </div>
+          <div>
+            <label for="fim">Fim <span class="obrig" aria-hidden="true">*</span></label>
+            <input id="fim" name="fim" type="time" step="300" required>
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Seus dados</legend>
+        <div class="grade">
+          <div class="inteira">
+            <label for="nome">Nome completo <span class="obrig" aria-hidden="true">*</span></label>
+            <input id="nome" name="nome" autocomplete="name" required maxlength="120">
+          </div>
+          <div class="inteira">
+            <label for="email">E-mail <span class="obrig" aria-hidden="true">*</span></label>
+            <input id="email" name="email" type="email" autocomplete="email" required maxlength="120" aria-describedby="dicaEmail">
+            <small id="dicaEmail">O link de confirmação será enviado para este endereço.</small>
+          </div>
+          <div>
+            <label for="contato">Telefone de contato <span class="obrig" aria-hidden="true">*</span></label>
+            <input id="contato" name="contato" type="tel" autocomplete="tel" required maxlength="40" placeholder="(53) 99999-9999">
+          </div>
+          <div>
+            <label for="matricula">Matrícula <span class="obrig" aria-hidden="true">*</span></label>
+            <input id="matricula" name="matricula" inputmode="numeric" required maxlength="30">
+          </div>
+          <div class="inteira">
+            <label for="curso">Curso <span class="obrig" aria-hidden="true">*</span></label>
+            <input id="curso" name="curso" required maxlength="120">
+          </div>
+          <div class="inteira">
+            <label for="finalidade">Finalidade (opcional)</label>
+            <textarea id="finalidade" name="finalidade" maxlength="300"></textarea>
+          </div>
+        </div>
+        <!-- Campo-armadilha: invisível para pessoas, preenchido por robôs -->
+        <div class="armadilha" aria-hidden="true">
+          <label for="site">Não preencha</label>
+          <input id="site" name="site" tabindex="-1" autocomplete="off">
+        </div>
+      </fieldset>
+
+      <button type="submit" id="btnReservar">Solicitar reserva</button>
+      <div id="msgReserva" class="msg" role="status" aria-live="polite" tabindex="-1"></div>
+      <p class="aviso">Seus dados são usados apenas para a gestão das reservas e não são exibidos publicamente.
+        Para cancelar uma reserva, use o link "cancelar" do e-mail de confirmação.</p>
+    </form>
+
+    <details>
+      <summary>Grade fixa da sala</summary>
+      <div id="gradeFixa">Selecione uma sala.</div>
+    </details>
+  </div>
+</main>
+
+<script>
+// ======== COLE AQUI a URL do App da Web do Google Apps Script ========
+const URL_SCRIPT = 'COLE_AQUI_A_URL_DO_APP_DA_WEB';
+// =====================================================================
+
+const $ = id => document.getElementById(id);
+const NOMES_DIA = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado'];
+let cfg = null;
+let ocupadosAtuais = null;   // ocupações da sala/data selecionadas (null = não carregadas)
+let seqAgenda = 0;           // descarta respostas de consultas antigas
+let ctrlAgenda = null;
+
+async function api(params, corpo, signal) {
+  if (!/^https:\/\/script\.google\.com\//.test(URL_SCRIPT)) {
+    throw new Error('A página ainda não foi configurada (URL do script ausente).');
+  }
+  let resp;
+  try {
+    resp = corpo
+      // text/plain evita a verificação CORS prévia, que o Apps Script não atende
+      ? await fetch(URL_SCRIPT, { method: 'POST', redirect: 'follow', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(corpo), signal })
+      : await fetch(URL_SCRIPT + '?' + new URLSearchParams(params), { redirect: 'follow', signal });
+  } catch (e) {
+    if (e.name === 'AbortError') throw e;
+    throw new Error('Sem comunicação com o servidor. Verifique sua conexão e tente novamente.');
+  }
+  if (!resp.ok) throw new Error('Falha de comunicação com o servidor (' + resp.status + ').');
+  let dados;
+  try { dados = await resp.json(); }
+  catch (e) { throw new Error('Resposta inesperada do servidor. O administrador deve conferir se o script está implantado com acesso "Qualquer pessoa".'); }
+  if (!dados.ok) throw new Error(dados.erro || 'Erro desconhecido.');
+  return dados;
+}
+
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+function mensagem(el, texto, tipo) { el.textContent = texto; el.className = 'msg ' + (tipo || ''); }
+const horaValida = h => /^([01]\d|2[0-3]):[0-5]\d$/.test(h);
+const minutos = h => { const [a, b] = h.split(':').map(Number); return a * 60 + b; };
+const dataBR = iso => iso.split('-').reverse().join('/');
+
+function hojeISO(somaDias = 0) {
+  const d = new Date(); d.setDate(d.getDate() + somaDias);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function diaSemana(iso) { const [a, m, d] = iso.split('-').map(Number); return new Date(a, m - 1, d).getDay(); }
+
+/** Intervalos livres dentro do horário de funcionamento. */
+function livres(ocupados) {
+  const out = []; let cursor = cfg.abertura;
+  for (const o of [...ocupados].sort((a, b) => a.inicio.localeCompare(b.inicio))) {
+    if (o.inicio > cursor) out.push({ inicio: cursor, fim: o.inicio });
+    if (o.fim > cursor) cursor = o.fim;
+  }
+  if (cursor < cfg.fechamento) out.push({ inicio: cursor, fim: cfg.fechamento });
+  return out.filter(l => minutos(l.fim) - minutos(l.inicio) >= (cfg.duracaoMin || 1));
+}
+
+// ------------------------- Formulário de reserva -------------------------
+
+async function iniciar() {
+  try {
+    cfg = await api({ acao: 'salas' });
+    $('sala').innerHTML = (cfg.salas.length > 1 ? '<option value="">Selecione…</option>' : '') +
+      cfg.salas.map(s => `<option>${esc(s)}</option>`).join('');
+    $('data').min = hojeISO();
+    $('data').max = hojeISO(cfg.antecedenciaMax);
+    for (const id of ['inicio', 'fim']) { $(id).min = cfg.abertura; $(id).max = cfg.fechamento; }
+    if (cfg.dominio) $('dicaEmail').textContent = `Use seu e-mail @${cfg.dominio}. O link de confirmação será enviado para ele.`;
+    mostrarGrade();
+    carregarAgenda();
+  } catch (e) {
+    $('sala').innerHTML = '<option value="">Indisponível</option>';
+    mensagem($('msgReserva'), e.message, 'erro');
+  }
+}
+
+function mostrarGrade() {
+  const sala = $('sala').value, box = $('gradeFixa');
+  const itens = (cfg && cfg.grade[sala]) || [];
+  if (!sala) { box.textContent = 'Selecione uma sala.'; return; }
+  if (!itens.length) { box.textContent = 'Esta sala não tem grade fixa cadastrada.'; return; }
+  const ord = [...itens].sort((a, b) => a.dia - b.dia || a.inicio.localeCompare(b.inicio));
+  const periodo = (cfg.gradeInicio || cfg.gradeFim)
+    ? ` de ${cfg.gradeInicio ? dataBR(cfg.gradeInicio) : '…'} a ${cfg.gradeFim ? dataBR(cfg.gradeFim) : '…'}` : '';
+  box.innerHTML = `<table><caption>Horários ocupados toda semana${esc(periodo)}</caption>
+    <thead><tr><th scope="col">Dia</th><th scope="col">Horário</th><th scope="col">Ocupação</th></tr></thead><tbody>` +
+    ord.map(g => `<tr><td>${NOMES_DIA[g.dia]}</td><td>${esc(g.inicio)}–${esc(g.fim)}</td><td>${esc(g.descricao)}</td></tr>`).join('') +
+    '</tbody></table>';
+}
+
+async function carregarAgenda() {
+  const sala = $('sala').value, data = $('data').value, box = $('agenda');
+  const meu = ++seqAgenda;
+  if (ctrlAgenda) ctrlAgenda.abort();
+  ctrlAgenda = null;
+  ocupadosAtuais = null;
+  if (!cfg || !sala || !data) { box.textContent = 'Selecione sala e data para ver os horários livres.'; return; }
+  const dia = diaSemana(data);
+  if (!cfg.diasPermitidos.includes(dia)) {
+    box.textContent = `Não há reservas neste dia (${NOMES_DIA[dia]}). Escolha outra data.`;
+    return;
+  }
+  box.textContent = 'Consultando horários…';
+  ctrlAgenda = new AbortController();
+  try {
+    const { ocupados, fechado } = await api({ acao: 'agenda', sala, data }, null, ctrlAgenda.signal);
+    if (meu !== seqAgenda) return; // o usuário já mudou a seleção
+    if (fechado) { box.textContent = fechado; return; }
+    ocupadosAtuais = ocupados;
+    const lv = livres(ocupados);
+    let html = `<p><strong>Livre em ${dataBR(data)} (${NOMES_DIA[dia]}):</strong> ` +
+      (lv.length ? lv.map(l => `${esc(l.inicio)}–${esc(l.fim)}`).join(', ') : 'nenhum horário livre nesta data') + '</p>';
+    if (ocupados.length) {
+      html += '<p><strong>Ocupado:</strong></p><ul>' +
+        ocupados.map(o => `<li>${esc(o.inicio)}–${esc(o.fim)}: ${esc(o.descricao)}</li>`).join('') + '</ul>';
+    }
+    box.innerHTML = html;
+  } catch (e) {
+    if (e.name === 'AbortError' || meu !== seqAgenda) return;
+    box.textContent = 'Não foi possível consultar a agenda: ' + e.message;
+  }
+}
+
+$('sala').addEventListener('change', () => { mostrarGrade(); carregarAgenda(); });
+$('data').addEventListener('change', carregarAgenda);
+
+$('formReserva').addEventListener('submit', async ev => {
+  ev.preventDefault();
+  const f = ev.target, msg = $('msgReserva'), btn = $('btnReservar');
+  if (!cfg) { mensagem(msg, 'O sistema ainda não carregou. Recarregue a página.', 'erro'); return; }
+  const faltando = [...f.querySelectorAll('[required]')].find(c => !c.value.trim());
+  if (faltando) {
+    mensagem(msg, 'Preencha o campo: ' + f.querySelector(`label[for="${faltando.id}"]`).textContent.replace('*', '').trim() + '.', 'erro');
+    faltando.focus(); return;
+  }
+  if (!$('email').checkValidity()) { mensagem(msg, 'Informe um e-mail válido.', 'erro'); $('email').focus(); return; }
+  const ini = $('inicio').value, fim = $('fim').value;
+  if (!horaValida(ini) || !horaValida(fim)) { mensagem(msg, 'Informe horários válidos (HH:MM).', 'erro'); $('inicio').focus(); return; }
+  if (fim <= ini) { mensagem(msg, 'O horário de fim deve ser depois do início.', 'erro'); $('fim').focus(); return; }
+  if (ini < cfg.abertura || fim > cfg.fechamento) {
+    mensagem(msg, `Reservas só entre ${cfg.abertura} e ${cfg.fechamento}.`, 'erro'); $('inicio').focus(); return;
+  }
+  const dur = minutos(fim) - minutos(ini);
+  if (dur < cfg.duracaoMin || dur > cfg.duracaoMax) {
+    mensagem(msg, `A duração deve ficar entre ${cfg.duracaoMin} e ${cfg.duracaoMax} minutos.`, 'erro'); $('fim').focus(); return;
+  }
+  // Checagem rápida na página; o servidor confere tudo de novo antes de gravar
+  const choque = (ocupadosAtuais || []).find(o => ini < o.fim && fim > o.inicio);
+  if (choque) {
+    mensagem(msg, `Horário ocupado (${choque.inicio}–${choque.fim}: ${choque.descricao}). Escolha um horário livre.`, 'erro');
+    $('inicio').focus(); return;
+  }
+
+  const dados = Object.fromEntries(new FormData(f));
+  dados.acao = 'reservar';
+  btn.disabled = true; mensagem(msg, 'Enviando pedido…');
+  try {
+    const r = await api(null, dados);
+    mensagem(msg, `Pedido registrado (código ${r.id}). Enviamos um link para ${dados.email}: abra-o e clique em "Confirmar reserva" em até ${r.prazo} minutos, senão o horário será liberado. Confira também a caixa de spam.`, 'ok');
+    for (const id of ['inicio', 'fim', 'finalidade']) $(id).value = '';
+  } catch (e) {
+    mensagem(msg, e.message, 'erro');
+  } finally {
+    btn.disabled = false;
+    msg.focus();
+    carregarAgenda();
+  }
+});
+
+// ------------------- Links do e-mail: confirmar / cancelar -------------------
+
+function lerLink() {
+  const m = location.hash.match(/^#(confirmar|cancelar)=([A-Za-z0-9]{6,20})\.([a-f0-9]{64})$/);
+  return m ? { acao: m[1], id: m[2].toUpperCase(), token: m[3] } : null;
+}
+
+async function abrirLink(link) {
+  $('areaReserva').hidden = true;
+  const painel = $('painelLink'), det = $('detalheLink'), btn = $('btnLink'), msg = $('msgLink');
+  painel.hidden = false;
+  $('tituloLink').textContent = link.acao === 'confirmar' ? 'Confirmar reserva' : 'Cancelar reserva';
+  painel.focus();
+  try {
+    const r = await api({ acao: 'detalhe', id: link.id, token: link.token });
+    det.innerHTML = `<dl>
+      <dt>Código</dt><dd>${esc(r.id)}</dd>
+      <dt>Sala</dt><dd>${esc(r.sala)}</dd>
+      <dt>Data</dt><dd>${esc(dataBR(r.data))} (${NOMES_DIA[diaSemana(r.data)]})</dd>
+      <dt>Horário</dt><dd>${esc(r.inicio)} às ${esc(r.fim)}</dd>
+      <dt>Situação</dt><dd id="situacaoLink">${esc(r.status)}</dd></dl>`;
+    const podeConfirmar = link.acao === 'confirmar' && r.status === 'Pendente';
+    const podeCancelar = link.acao === 'cancelar' && (r.status === 'Pendente' || r.status === 'Ativa');
+    if (link.acao === 'confirmar' && r.status === 'Ativa') mensagem(msg, 'Esta reserva já está confirmada.', 'ok');
+    else if (r.status === 'Expirada') mensagem(msg, 'O prazo de confirmação acabou e o horário foi liberado. Faça uma nova reserva.', 'erro');
+    else if (r.status === 'Cancelada') mensagem(msg, 'Esta reserva está cancelada.', 'erro');
+    if (podeConfirmar || podeCancelar) {
+      btn.textContent = podeConfirmar ? 'Confirmar reserva' : 'Cancelar esta reserva';
+      btn.hidden = false;
+      btn.onclick = async () => {
+        btn.disabled = true; mensagem(msg, 'Processando…');
+        try {
+          await api(null, { acao: link.acao, id: link.id, token: link.token });
+          btn.hidden = true;
+          $('situacaoLink').textContent = podeConfirmar ? 'Ativa' : 'Cancelada';
+          mensagem(msg, podeConfirmar ? 'Reserva confirmada! Guarde o e-mail recebido: ele traz o link para cancelar, se precisar.' : 'Reserva cancelada. O horário foi liberado.', 'ok');
+        } catch (e) {
+          mensagem(msg, e.message, 'erro');
+        } finally {
+          btn.disabled = false;
+        }
+      };
+    }
+  } catch (e) {
+    det.textContent = '';
+    mensagem(msg, e.message, 'erro');
+  }
+}
+
+const link = lerLink();
+if (link) abrirLink(link); else iniciar();
+</script>
+</body>
+</html>
